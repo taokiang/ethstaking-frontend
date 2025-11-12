@@ -35,7 +35,7 @@
           <span>View on Explorer</span>
         </div>
 
-        <div class="wallet-menu-item">
+        <div class="wallet-menu-item" @click="switchNetwork(1)">
           <i class="anticon anticon-exchange mr-2"></i>
           <span>Switch Network</span>
         </div>
@@ -65,6 +65,7 @@
 import { ref, onMounted, onBeforeUnmount } from 'vue'
 import { useWalletStore } from '@/stores/walletStore'
 import { message } from 'ant-design-vue'
+import { id } from 'ethers'
 
 // 状态
 const showWalletMenu = ref(false)
@@ -98,6 +99,12 @@ const disconnectWallet = () => {
   walletStore.disconnectWallet()
   showWalletMenu.value = false
   message.success('Wallet disconnected')
+}
+
+// 方法 - 切换网络
+const switchNetwork = (chainId: number) => {
+  walletStore.switchChain(chainId)
+  showWalletMenu.value = false
 }
 
 // 点击外部关闭菜单
