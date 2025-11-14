@@ -2,6 +2,7 @@ import { defineStore } from 'pinia'
 import { ref, computed, watch, watchEffect } from 'vue'
 import { useAppKit, useAppKitAccount, useDisconnect, useAppKitNetwork } from '@reown/appkit/vue'
 import { BrowserProvider, formatEther, type Eip1193Provider, toBeHex } from 'ethers'
+import { getContracts } from '@/utils/contract'
 
 // 定义交易状态
 type TransactionStatus = 'idle' | 'pending' | 'success' | 'error'
@@ -56,7 +57,7 @@ export const useWalletStore = defineStore('wallet', () => {
       console.error('获取余额失败:', err)
     }
   }
-  // 监听连接状态变化，连接后获取余额
+  // 监听钱包连接状态变化
   watch(
     () => connected.value,
     async (newVal) => {

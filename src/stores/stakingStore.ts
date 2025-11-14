@@ -1,8 +1,8 @@
 import { defineStore } from 'pinia'
 import { ref, computed, watch } from 'vue'
 import { useWalletStore } from '@/stores/walletStore'
-import { getStakingRewardContract } from '@/utils/contract'
-import { parseEther } from 'ethers'
+import { getStakingContract, getStakingRewardContract, getUserAddress } from '@/utils/contract'
+import { parseEther, formatEther } from 'ethers'
 
 // 定义质押代币类型
 export interface StakingToken {
@@ -186,15 +186,34 @@ export const useStakingStore = defineStore('staking', () => {
       return false
     }
 
+    const stakContract = await getStakingContract();
+    const address = await getUserAddress();
+    const maxTokenStaking = formatEther(await stakContract.balanceOf(address));
+    console.log('address', address);
+    console.log('maxTokenStaking', maxTokenStaking);
+    if(Number(maxTokenStaking) < amount) {
+      errorMessage.value = 'Insufficient token balance for staking'
+      return false
+    };
+
     isLoading.value = true
     clearMessages()
 
     try {
       // 如果需要真实调用合约，可启用以下逻辑
-        console.log(parseEther(amount.toString()))
-      // const stakingReward = await getStakingRewardContract()
-      // const tx = await stakingReward.stake(amount)
+      console.log(parseEther(amount.toString()))
+      // const stakingRewardContract = await getStakingRewardContract();
+      // const tokenStaking = parseEther(amount.toString());
+      // // 质押合约授权给质押收益合约代币
+      // const result = await stakContract.approve(
+      //  await stakingRewardContract.getAddress(),
+      //  tokenStaking
+      // );
+      // console.log('Approval result:', result);
+      // // 质押
+      // const tx = await stakingRewardContract.stake(tokenStaking)
       // await tx.wait()
+      // console.log('Staking transaction:', tx)
       // 检查是否已有该代币的质押记录
       const currentTokenId = selectedTokenId.value
       const existingStakeIndex = userStakes.value.findIndex(

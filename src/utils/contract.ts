@@ -8,6 +8,7 @@ import stakingRewardsAbi from '@/abi/StakingRewards.json'
 export async function getContracts() {
   const account = useAppKitAccount()
   const isConnected = account.value.isConnected
+  console.log('account', account.value);
   if (!isConnected) {
     throw new Error('Wallet not connected')
   }
@@ -16,10 +17,10 @@ export async function getContracts() {
   const ethersProvider = new BrowserProvider(walletProvider as Eip1193Provider)
   const signer = await ethersProvider.getSigner()
 
-  // 代币合约
+  // 质押代币合约
   const token1Address = import.meta.env.VITE_TOKEN1_ADDRESS as string
   const token1 = new Contract(token1Address, token1Abi.abi, signer)
-
+  // 收益代币合约
   const token2Address = import.meta.env.VITE_TOKEN2_ADDRESS as string
   const token2 = new Contract(token2Address, token2Abi.abi, signer)
 
@@ -38,6 +39,16 @@ export async function getContracts() {
 export async function getStakingRewardContract() {
   const { stakingReward } = await getContracts()
   return stakingReward
+}
+
+export async function getStakingContract() {
+  const { token1 } = await getContracts()
+  return token1
+}
+
+export async function getRewardContract() {
+  const { token2 } = await getContracts()
+  return token2
 }
 
 export async function getUserAddress() {
