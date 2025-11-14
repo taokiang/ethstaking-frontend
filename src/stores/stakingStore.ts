@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, computed, watch } from 'vue'
 import { useWalletStore } from '@/stores/walletStore'
-import { getStakingContract, getStakingRewardContract, getUserAddress } from '@/utils/contract'
+import { getStakingContract, getStakingRewardContract, getUserAddress, getEarned, getReward, viewReward } from '@/utils/contract'
 import { parseEther, formatEther } from 'ethers'
 
 // 定义质押代币类型
@@ -114,12 +114,25 @@ export const useStakingStore = defineStore('staking', () => {
       }
     }
   }
+  const tokenRewards = ref<number>(0);
 
   // 监听用户质押数据变化，保存到本地存储
   watch(
     userStakes,
     (newStakes) => {
       localStorage.setItem('userStakes', JSON.stringify(newStakes))
+      // 3s更新一次收益
+      // setInterval(async () => {
+      //   if (!walletStore.address) return;
+      //   const rewards = await getEarned(walletStore.address).then((res) => {
+      //     return parseFloat(formatEther(res));
+      //   }).catch((err) => {
+      //     console.error('Error fetching earned rewards:', err);
+      //     return 0;
+      //   });
+      //   console.log('Fetched rewards:', rewards);
+      //   tokenRewards.value = rewards;
+      // }, 3000);
     },
     { deep: true },
   )
@@ -145,9 +158,10 @@ export const useStakingStore = defineStore('staking', () => {
     return userStakesByToken.value.reduce((total, stake) => total + stake.amount, 0)
   })
 
-  const tokenRewards = computed(() => {
-    return userStakesByToken.value.reduce((total, stake) => total + stake.reward, 0)
-  })
+  // const tokenRewards = computed(() => {
+  //   return userStakesByToken.value.reduce((total, stake) => total + stake.reward, 0)
+  // })
+  
 
   // 方法 - 选择质押代币
   const selectToken = (tokenId: string) => {
@@ -159,8 +173,17 @@ export const useStakingStore = defineStore('staking', () => {
 
   // 方法 - 质押
   const stake = async () => {
+    // ✅ 第一层检查：钱包连接状态（同步检查）
     if (!walletStore.connected) {
       errorMessage.value = 'Please connect your wallet first'
+      console.warn('[Staking] Wallet not connected')
+      return false
+    }
+
+    // ✅ 第二层检查：钱包地址存在（同步检查）
+    if (!walletStore.address) {
+      errorMessage.value = 'Wallet address not available'
+      console.warn('[Staking] Wallet address not available')
       return false
     }
 
@@ -186,72 +209,87 @@ export const useStakingStore = defineStore('staking', () => {
       return false
     }
 
-    const stakContract = await getStakingContract();
-    const address = await getUserAddress();
-    const maxTokenStaking = formatEther(await stakContract.balanceOf(address));
-    console.log('address', address);
-    console.log('maxTokenStaking', maxTokenStaking);
-    if(Number(maxTokenStaking) < amount) {
-      errorMessage.value = 'Insufficient token balance for staking'
-      return false
-    };
-
     isLoading.value = true
     clearMessages()
 
     try {
-      // 如果需要真实调用合约，可启用以下逻辑
-      console.log(parseEther(amount.toString()))
-      // const stakingRewardContract = await getStakingRewardContract();
-      // const tokenStaking = parseEther(amount.toString());
-      // // 质押合约授权给质押收益合约代币
-      // const result = await stakContract.approve(
-      //  await stakingRewardContract.getAddress(),
-      //  tokenStaking
-      // );
-      // console.log('Approval result:', result);
-      // // 质押
-      // const tx = await stakingRewardContract.stake(tokenStaking)
-      // await tx.wait()
-      // console.log('Staking transaction:', tx)
-      // 检查是否已有该代币的质押记录
+      // ✅ 在异步操作前再次确认钱包状态（防止用户在操作中断开连接）
+      if (!walletStore.connected || !walletStore.address) {
+        throw new Error('Wallet disconnected during operation')
+      }
+
+      const stakContract = await getStakingContract();
+      const userAddress = await getUserAddress();
+      const maxTokenStaking = formatEther(await stakContract.balanceOf(userAddress));
+      // console.log('[Staking] User address:', userAddress);
+      // console.log('[Staking] Max token balance:', maxTokenStaking);
+      
+      if(Number(maxTokenStaking) < amount) {
+        errorMessage.value = 'Insufficient token balance for staking'
+        return false
+      }
+      // console.log('amount', amount)
+      const stakingRewardContract = await getStakingRewardContract()
+      const tokenAmount = parseEther(amount.toString())
+      
+      // 获取质押合约地址
+      const stakingRewardAddress = await stakingRewardContract.getAddress()
+      // 1. 检查授权额度
+      const allowance = await stakContract.allowance(userAddress, stakingRewardAddress)
+      console.log('allowance', allowance.toString())
+      return false
+      
+      if (allowance < tokenAmount) {
+        // 2. 如果需要，先授权
+        console.log('Approving tokens for staking...')
+        const approveTx = await stakContract.approve(stakingRewardAddress, tokenAmount)
+        await approveTx.wait()
+        console.log('Approval successful:', approveTx.hash)
+      }
+      
+      // 3. 执行质押
+      console.log('Staking tokens...')
+      const stakeTx = await stakingRewardContract.stake(tokenAmount)
+      const receipt = await stakeTx.wait()
+      console.log('Staking successful:', receipt?.hash)
+
+      // 4. 更新本地状态
       const currentTokenId = selectedTokenId.value
       const existingStakeIndex = userStakes.value.findIndex(
         (stake) => stake.tokenId === currentTokenId && !stake.isLocked,
       )
-
+      
       if (existingStakeIndex >= 0) {
-        // 更新现有质押
         userStakes.value[existingStakeIndex].amount += amount
       } else {
-        // 添加新质押
         userStakes.value.push({
           tokenId: currentTokenId,
           amount,
           timestamp: Date.now(),
           reward: 0,
           lastClaimed: Date.now(),
-          isLocked: !!selectedToken.value.lockupPeriod,
-          unlockTime: selectedToken.value.lockupPeriod
+          isLocked: !!selectedToken.value?.lockupPeriod,
+          unlockTime: selectedToken.value?.lockupPeriod
             ? Date.now() + selectedToken.value.lockupPeriod * 24 * 60 * 60 * 1000
             : undefined,
         })
       }
-
-      // 添加交易记录
+      
+      // 5. 添加交易记录
       walletStore.addTransaction({
         type: 'stake',
         amount: amount.toString(),
-        token: selectedToken.value.symbol,
+        token: selectedToken.value?.symbol || 'UNKNOWN',
         status: 'completed',
+        transactionHash: receipt?.hash,
       })
-
-      successMessage.value = `Successfully staked ${amount} ${selectedToken.value.symbol}`
+      
+      successMessage.value = `Successfully staked ${amount} tokens`
       stakingAmount.value = ''
       return true
     } catch (error) {
       console.error('Staking error:', error)
-      errorMessage.value = 'Failed to stake tokens. Please try again.'
+      errorMessage.value = error instanceof Error ? error.message : 'Failed to stake tokens. Please try again.'
       return false
     } finally {
       isLoading.value = false
@@ -295,7 +333,13 @@ export const useStakingStore = defineStore('staking', () => {
 
     try {
       // 模拟区块链交易
-      await new Promise((resolve) => setTimeout(resolve, 2000))
+      // await new Promise((resolve) => setTimeout(resolve, 2000))
+      await getReward()
+      if(!walletStore.address) {
+        throw new Error('Wallet address not available')
+      }
+      const rewards = await viewReward(walletStore.address)
+      console.log('rewards', rewards)
 
       // 先处理非锁仓的质押
       let remainingAmount = amount
@@ -355,7 +399,8 @@ export const useStakingStore = defineStore('staking', () => {
 
     try {
       // 模拟区块链交易
-      await new Promise((resolve) => setTimeout(resolve, 1500))
+      // await new Promise((resolve) => setTimeout(resolve, 1500))
+      await getReward()
 
       const rewardsToClaim = tokenRewards.value
 

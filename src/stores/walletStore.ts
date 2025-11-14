@@ -2,7 +2,7 @@ import { defineStore } from 'pinia'
 import { ref, computed, watch, watchEffect } from 'vue'
 import { useAppKit, useAppKitAccount, useDisconnect, useAppKitNetwork } from '@reown/appkit/vue'
 import { BrowserProvider, formatEther, type Eip1193Provider, toBeHex } from 'ethers'
-import { getContracts } from '@/utils/contract'
+import { clearContractCache } from '@/utils/contract'
 
 // 定义交易状态
 type TransactionStatus = 'idle' | 'pending' | 'success' | 'error'
@@ -112,6 +112,7 @@ export const useWalletStore = defineStore('wallet', () => {
   // 断开钱包连接
   const disconnectWallet = async () => {
     await disconnect()
+    clearContractCache()
     chainId.value = null
     transactionMessage.value = 'Wallet disconnected'
   }
