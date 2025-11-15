@@ -31,6 +31,15 @@ export interface UserStake {
   unlockTime?: number
 }
 
+// 定义奖励历史接口
+export interface RewardHistory {
+  id: string
+  date: number // 时间戳
+  amount: number // 奖励金额
+  transactionHash?: string // 交易哈希
+  status: 'completed' | 'pending' | 'failed'
+}
+
 // 模拟质押代币数据
 const STAKING_TOKENS: StakingToken[] = [
   {
@@ -113,8 +122,22 @@ export const useStakingStore = defineStore('staking', () => {
         userStakes.value = []
       }
     }
+    
+    // 从本地存储加载奖励历史
+    const savedRewardsHistory = localStorage.getItem('rewardsHistory')
+    if (savedRewardsHistory) {
+      try {
+        rewardsHistory.value = JSON.parse(savedRewardsHistory)
+      } catch (error) {
+        console.error('Failed to parse saved rewards history:', error)
+        rewardsHistory.value = []
+      }
+    }
   }
   const tokenRewards = ref<number>(0);
+  
+  // 添加奖励历史状态
+  const rewardsHistory = ref<RewardHistory[]>([])
 
   // 监听用户质押数据变化，保存到本地存储
   watch(
@@ -124,8 +147,17 @@ export const useStakingStore = defineStore('staking', () => {
     },
     { deep: true },
   )
+  
+  // 监听奖励历史变化，保存到本地存储
+  watch(
+    rewardsHistory,
+    (newHistory) => {
+      localStorage.setItem('rewardsHistory', JSON.stringify(newHistory))
+    },
+    { deep: true },
+  )
 
-  // ✅ 监听钱包连接状态，当钱包连接时启动奖励计算
+  // 监听钱包连接状态，当钱包连接时启动奖励计算
   let rewardCalculationInterval: ReturnType<typeof setInterval> | null = null
 
   watch(
@@ -192,14 +224,14 @@ export const useStakingStore = defineStore('staking', () => {
 
   // 方法 - 质押
   const stake = async () => {
-    // ✅ 第一层检查：钱包连接状态（同步检查）
+    // 第一层检查：钱包连接状态（同步检查）
     if (!walletStore.connected) {
       errorMessage.value = 'Please connect your wallet first'
       console.warn('[Staking] Wallet not connected')
       return false
     }
 
-    // ✅ 第二层检查：钱包地址存在（同步检查）
+    // 第二层检查：钱包地址存在（同步检查）
     if (!walletStore.address) {
       errorMessage.value = 'Wallet address not available'
       console.warn('[Staking] Wallet address not available')
@@ -232,7 +264,7 @@ export const useStakingStore = defineStore('staking', () => {
     clearMessages()
 
     try {
-      // ✅ 在异步操作前再次确认钱包状态（防止用户在操作中断开连接）
+      // 在异步操作前再次确认钱包状态（防止用户在操作中断开连接）
       if (!walletStore.connected || !walletStore.address) {
         throw new Error('Wallet disconnected during operation')
       }
@@ -356,13 +388,13 @@ export const useStakingStore = defineStore('staking', () => {
     clearMessages()
 
     try {
-      // ✅ 从智能合约执行提取操作
+      // 从智能合约执行提取操作
       console.log('[Withdraw] Withdrawing tokens from smart contract...')
 
       const receipt = await getReward();
       console.log('[Withdraw] Withdrawal successful:', receipt?.hash)
 
-      // ✅ 从智能合约获取最新的奖励数据
+      // 从智能合约获取最新的奖励数据
       const earnedFormatted = await getEarned(walletStore.address)
       const earnedNumber = Number(formatEther(BigInt(earnedFormatted)))
       tokenRewards.value = earnedNumber
@@ -432,13 +464,24 @@ export const useStakingStore = defineStore('staking', () => {
     clearMessages()
 
     try {
-      // ✅ 从智能合约领取奖励
+      // 从智能合约领取奖励
       console.log('[ClaimRewards] Claiming rewards from smart contract...')
       const rewardsToClaim = tokenRewards.value
       
       // 调用合约的 getReward 方法提取奖励
-      await getReward()
+      const receipt = await getReward()
       console.log('[ClaimRewards] Rewards claimed successfully')
+
+      // 将奖励记录添加到历史
+      const rewardRecord: RewardHistory = {
+        id: Date.now().toString(),
+        date: Date.now(),
+        amount: rewardsToClaim,
+        transactionHash: receipt?.hash || undefined,
+        status: 'completed',
+      }
+      rewardsHistory.value.unshift(rewardRecord)
+      console.log('[ClaimRewards] Reward history recorded:', rewardRecord)
 
       // ✅ 清零本地状态中的奖励
       tokenRewards.value = 0
@@ -461,6 +504,7 @@ export const useStakingStore = defineStore('staking', () => {
         amount: rewardsToClaim.toFixed(4),
         token: selectedToken.value.rewardTokenSymbol,
         status: 'completed',
+        transactionHash: receipt?.hash,
       })
 
       successMessage.value = `Successfully claimed ${rewardsToClaim.toFixed(4)} ${selectedToken.value.rewardTokenSymbol}`
@@ -476,9 +520,9 @@ export const useStakingStore = defineStore('staking', () => {
 
   // 方法 - 计算奖励
   const calculateRewards = async () => {
-    // ✅ 从智能合约获取用户的实时奖励
+    // 从智能合约获取用户的实时奖励
     try {
-      // ⚠️ 只有钱包连接且地址存在时才更新奖励
+      // 只有钱包连接且地址存在时才更新奖励
       if (!walletStore.connected) {
         console.debug('[CalculateRewards] Wallet not connected, skipping reward calculation')
         return
@@ -497,7 +541,7 @@ export const useStakingStore = defineStore('staking', () => {
       tokenRewards.value = earnedFormatted
       console.log('[CalculateRewards] Updated rewards from contract:', earnedFormatted)
 
-      // ✅ 同步更新本地质押记录中对应代币的奖励
+      // 同步更新本地质押记录中对应代币的奖励
       // 注意：这里只更新选中代币的奖励，如果需要所有代币的奖励，应遍历所有质押
       if (selectedTokenId.value) {
         userStakes.value = userStakes.value.map((stake) => {
@@ -540,6 +584,7 @@ export const useStakingStore = defineStore('staking', () => {
     userStakesByToken,
     tokenStakedAmount,
     tokenRewards,
+    rewardsHistory,
     selectToken,
     stake,
     withdraw,

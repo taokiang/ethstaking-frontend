@@ -7,7 +7,7 @@
 
     <!-- 已连接状态 -->
     <div v-else class="connected-wallet">
-      <div class="wallet-balance">{{ walletStore.balance }} ETH</div>
+      <div class="wallet-balance">{{ Number(walletStore.balance).toFixed(4) }} ETH</div>
 
       <div
         class="wallet-menu-trigger"

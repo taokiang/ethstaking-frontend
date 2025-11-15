@@ -251,13 +251,21 @@
                   <h5 class="mb-10">Rewards History</h5>
                   <a-table
                     :columns="rewardsColumns"
-                    :data-source="rewardsHistory"
+                    :data-source="stakingStore.rewardsHistory"
                     row-key="id"
                     :pagination="{ pageSize: 5 }"
                   >
                     <template #bodyCell="{ column, record }">
                       <template v-if="column.dataIndex === 'date'">
-                        {{ new Date(record.date).toLocaleDateString() }}
+                        {{ new Date(record.date).toLocaleString([], { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit' }) }}
+                      </template>
+                      <template v-else-if="column.dataIndex === 'amount'">
+                        {{ record.amount.toFixed(4) }}
+                      </template>
+                      <template v-else-if="column.dataIndex === 'transactionHash'">
+                        <div :title="record.transactionHash">
+                          {{ record.transactionHash ? `${record.transactionHash.slice(0, 8)}...${record.transactionHash.slice(-6)}` : '-' }}
+                        </div>
                       </template>
                       <template v-else-if="column.dataIndex === 'status'">
                         <span class="tag tag-success">Completed</span>
@@ -313,12 +321,7 @@ const isWithdrawAmountValid = ref(false)
 const walletStore = useWalletStore()
 const stakingStore = useStakingStore()
 
-// 奖励历史数据（模拟）
-const rewardsHistory = ref([
-  { id: '1', date: Date.now() - 7 * 24 * 60 * 60 * 1000, amount: 0.5432 },
-  { id: '2', date: Date.now() - 14 * 24 * 60 * 60 * 1000, amount: 0.5218 },
-  { id: '3', date: Date.now() - 21 * 24 * 60 * 60 * 1000, amount: 0.5367 },
-])
+// ✅ 奖励历史直接使用 store 中的数据，无需本地定义
 
 // 奖励表格列定义
 const rewardsColumns = [
@@ -333,9 +336,21 @@ const rewardsColumns = [
     dataIndex: 'amount',
     key: 'amount',
     width: 150,
-    render: (amount: number) => `${amount} ${stakingStore.selectedToken?.rewardTokenSymbol || ''}`,
+    render: (amount: number) => `${amount.toFixed(6)} ${stakingStore.selectedToken?.rewardTokenSymbol || ''}`,
   },
-  { title: 'Status', dataIndex: 'status', key: 'status', width: 120 },
+  {
+    title: 'Transaction',
+    dataIndex: 'transactionHash',
+    key: 'transactionHash',
+    width: 200,
+    render: (hash: string | undefined) => hash ? `${hash.slice(0, 8)}...${hash.slice(-6)}` : '-',
+  },
+  {
+    title: 'Status',
+    dataIndex: 'status',
+    key: 'status',
+    width: 120,
+  },
 ]
 
 // 计算属性 - 奖励估算

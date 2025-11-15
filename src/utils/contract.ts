@@ -69,7 +69,6 @@ async function ensureProviderAndSigner() {
   }
 
   try {
-    // ✅ 直接使用 window.ethereum，避免在非 setup 上下文中调用 Composables
     if (!window.ethereum) {
       throw new Error('No wallet provider available (window.ethereum not found)')
     }
