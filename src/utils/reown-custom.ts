@@ -1,6 +1,6 @@
 import { createAppKit } from '@reown/appkit/vue'
 import { EthersAdapter } from '@reown/appkit-adapter-ethers'
-import { mainnet } from '@reown/appkit/networks'
+import { mainnet, sepolia } from '@reown/appkit/networks'
 
 // 1. Get projectId from https://dashboard.reown.com
 const projectId = import.meta.env.VITE_YOUR_PROJECT_ID
@@ -29,7 +29,7 @@ const localNetwork = {
 try {
   createAppKit({
     adapters: [new EthersAdapter()],
-    networks: [mainnet, localNetwork],
+    networks: [mainnet, localNetwork, sepolia],
     defaultNetwork: localNetwork,
     metadata,
     projectId,

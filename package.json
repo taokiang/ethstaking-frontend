@@ -7,7 +7,9 @@
   "license": "MIT",
   "scripts": {
     "dev": "vite",
-    "build": "vue-tsc --noEmit && vite build",
+    "dev:test": "vite --mode test",
+    "build:test": "vite build --mode test",
+    "build": "vue-tsc --noEmit && vite build --mode production",
     "preview": "vite preview",
     "type-check": "vue-tsc --noEmit"
   },
