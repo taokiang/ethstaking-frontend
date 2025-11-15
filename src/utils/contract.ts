@@ -2,7 +2,6 @@
  * 合约工具函数
  */
 
-import { useAppKitProvider } from '@reown/appkit/vue'
 import { BrowserProvider, Contract, type Eip1193Provider, type Signer } from 'ethers'
 import token1Abi from '@/abi/Token1.json'
 import token2Abi from '@/abi/Token2.json'
@@ -70,16 +69,16 @@ async function ensureProviderAndSigner() {
   }
 
   try {
-    const { walletProvider } = useAppKitProvider('eip155')
-    if (!walletProvider) {
-      throw new Error('Wallet provider not available')
+    // ✅ 直接使用 window.ethereum，避免在非 setup 上下文中调用 Composables
+    if (!window.ethereum) {
+      throw new Error('No wallet provider available (window.ethereum not found)')
     }
 
-    cache.provider = new BrowserProvider(walletProvider as Eip1193Provider)
+    cache.provider = new BrowserProvider(window.ethereum as unknown as Eip1193Provider)
     cache.signer = await cache.provider.getSigner()
     cache.address = walletStore.address
 
-    // console.log('[Contract Utils] Provider and signer initialized for address:', cache.address)
+    console.log('[Contract Utils] Provider and signer initialized for address:', cache.address)
 
     return { provider: cache.provider, signer: cache.signer }
   } catch (error) {
@@ -244,8 +243,9 @@ export async function getReward() {
   try {
     const stakingContract = await getStakingRewardContract()
     const tx = await stakingContract.getReward()
-    await tx.wait()
+    const receipt = await tx.wait()
     console.log('[Contract Utils] Reward claimed successfully')
+    return receipt
   } catch (error) {
     console.error('[Contract Utils] Error claiming reward:', error)
     throw error
@@ -253,7 +253,7 @@ export async function getReward() {
 }
 
 /**
- * 用户查看收益
+ * 用户查看收益余额
  * @param userAddress - 用户地址
  * @returns 未领取奖励（wei 单位的字符串）
  */

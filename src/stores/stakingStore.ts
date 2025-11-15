@@ -121,20 +121,39 @@ export const useStakingStore = defineStore('staking', () => {
     userStakes,
     (newStakes) => {
       localStorage.setItem('userStakes', JSON.stringify(newStakes))
-      // 3s更新一次收益
-      // setInterval(async () => {
-      //   if (!walletStore.address) return;
-      //   const rewards = await getEarned(walletStore.address).then((res) => {
-      //     return parseFloat(formatEther(res));
-      //   }).catch((err) => {
-      //     console.error('Error fetching earned rewards:', err);
-      //     return 0;
-      //   });
-      //   console.log('Fetched rewards:', rewards);
-      //   tokenRewards.value = rewards;
-      // }, 3000);
     },
     { deep: true },
+  )
+
+  // ✅ 监听钱包连接状态，当钱包连接时启动奖励计算
+  let rewardCalculationInterval: ReturnType<typeof setInterval> | null = null
+
+  watch(
+    () => walletStore.connected,
+    (isConnected) => {
+      if (isConnected) {
+        console.log('[StakingStore] Wallet connected, starting reward calculation...')
+        // 立即计算一次
+        calculateRewards()
+        // 清除之前的定时器（如果有）
+        if (rewardCalculationInterval) {
+          clearInterval(rewardCalculationInterval)
+        }
+        // 启动定时器，每30秒更新一次
+        rewardCalculationInterval = setInterval(() => {
+          calculateRewards()
+        }, 30000)
+      } else {
+        console.log('[StakingStore] Wallet disconnected, stopping reward calculation...')
+        // 钱包断开连接时清除定时器
+        if (rewardCalculationInterval) {
+          clearInterval(rewardCalculationInterval)
+          rewardCalculationInterval = null
+        }
+        // 清零奖励
+        tokenRewards.value = 0
+      }
+    },
   )
 
   // 计算属性
@@ -221,8 +240,8 @@ export const useStakingStore = defineStore('staking', () => {
       const stakContract = await getStakingContract();
       const userAddress = await getUserAddress();
       const maxTokenStaking = formatEther(await stakContract.balanceOf(userAddress));
-      // console.log('[Staking] User address:', userAddress);
-      // console.log('[Staking] Max token balance:', maxTokenStaking);
+      console.log('amount', amount);
+      console.log('[Staking] Max token balance:', Number(maxTokenStaking));
       
       if(Number(maxTokenStaking) < amount) {
         errorMessage.value = 'Insufficient token balance for staking'
@@ -236,8 +255,8 @@ export const useStakingStore = defineStore('staking', () => {
       const stakingRewardAddress = await stakingRewardContract.getAddress()
       // 1. 检查授权额度
       const allowance = await stakContract.allowance(userAddress, stakingRewardAddress)
-      console.log('allowance', allowance.toString())
-      return false
+      // console.log('allowance', allowance.toString())
+      // return false
       
       if (allowance < tokenAmount) {
         // 2. 如果需要，先授权
@@ -303,6 +322,11 @@ export const useStakingStore = defineStore('staking', () => {
       return false
     }
 
+    if (!walletStore.address) {
+      errorMessage.value = 'Wallet address not available'
+      return false
+    }
+
     if (!selectedToken.value) {
       errorMessage.value = 'Please select a token to withdraw'
       return false
@@ -332,14 +356,18 @@ export const useStakingStore = defineStore('staking', () => {
     clearMessages()
 
     try {
-      // 模拟区块链交易
-      // await new Promise((resolve) => setTimeout(resolve, 2000))
-      await getReward()
-      if(!walletStore.address) {
-        throw new Error('Wallet address not available')
-      }
-      const rewards = await viewReward(walletStore.address)
-      console.log('rewards', rewards)
+      // ✅ 从智能合约执行提取操作
+      console.log('[Withdraw] Withdrawing tokens from smart contract...')
+
+      const receipt = await getReward();
+      console.log('[Withdraw] Withdrawal successful:', receipt?.hash)
+
+      // ✅ 从智能合约获取最新的奖励数据
+      const earnedFormatted = await getEarned(walletStore.address)
+      const earnedNumber = Number(formatEther(BigInt(earnedFormatted)))
+      tokenRewards.value = earnedNumber
+      
+      console.log('[Withdraw] Latest rewards from contract:', earnedNumber)
 
       // 先处理非锁仓的质押
       let remainingAmount = amount
@@ -363,14 +391,15 @@ export const useStakingStore = defineStore('staking', () => {
         amount: amount.toString(),
         token: selectedToken.value.symbol,
         status: 'completed',
+        transactionHash: receipt?.hash,
       })
 
       successMessage.value = `Successfully withdrew ${amount} ${selectedToken.value.symbol}`
       withdrawAmount.value = ''
       return true
     } catch (error) {
-      console.error('Withdrawal error:', error)
-      errorMessage.value = 'Failed to withdraw tokens. Please try again.'
+      console.error('[Withdraw] Withdrawal error:', error)
+      errorMessage.value = error instanceof Error ? error.message : 'Failed to withdraw tokens. Please try again.'
       return false
     } finally {
       isLoading.value = false
@@ -381,6 +410,11 @@ export const useStakingStore = defineStore('staking', () => {
   const claimRewards = async () => {
     if (!walletStore.connected) {
       errorMessage.value = 'Please connect your wallet first'
+      return false
+    }
+
+    if (!walletStore.address) {
+      errorMessage.value = 'Wallet address not available'
       return false
     }
 
@@ -398,13 +432,18 @@ export const useStakingStore = defineStore('staking', () => {
     clearMessages()
 
     try {
-      // 模拟区块链交易
-      // await new Promise((resolve) => setTimeout(resolve, 1500))
-      await getReward()
-
+      // ✅ 从智能合约领取奖励
+      console.log('[ClaimRewards] Claiming rewards from smart contract...')
       const rewardsToClaim = tokenRewards.value
+      
+      // 调用合约的 getReward 方法提取奖励
+      await getReward()
+      console.log('[ClaimRewards] Rewards claimed successfully')
 
-      // 清零奖励
+      // ✅ 清零本地状态中的奖励
+      tokenRewards.value = 0
+
+      // 清零用户质押记录中的奖励
       userStakes.value = userStakes.value.map((stake) => {
         if (stake.tokenId === selectedTokenId.value) {
           return {
@@ -427,8 +466,8 @@ export const useStakingStore = defineStore('staking', () => {
       successMessage.value = `Successfully claimed ${rewardsToClaim.toFixed(4)} ${selectedToken.value.rewardTokenSymbol}`
       return true
     } catch (error) {
-      console.error('Reward claim error:', error)
-      errorMessage.value = 'Failed to claim rewards. Please try again.'
+      console.error('[ClaimRewards] Reward claim error:', error)
+      errorMessage.value = error instanceof Error ? error.message : 'Failed to claim rewards. Please try again.'
       return false
     } finally {
       isLoading.value = false
@@ -436,24 +475,44 @@ export const useStakingStore = defineStore('staking', () => {
   }
 
   // 方法 - 计算奖励
-  const calculateRewards = () => {
-    // 模拟奖励计算 - 实际应用中应该从智能合约获取
-    userStakes.value = userStakes.value.map((stake) => {
-      const token = stakingTokens.value.find((t) => t.id === stake.tokenId)
-      if (!token) return stake
-
-      // 计算自上次领取奖励以来的时间（天）
-      const timePassed = (Date.now() - stake.lastClaimed) / (1000 * 60 * 60 * 24)
-
-      // 基于APY计算奖励
-      const dailyRewardRate = token.apy / 100 / 365
-      const newReward = stake.amount * dailyRewardRate * timePassed
-
-      return {
-        ...stake,
-        reward: stake.reward + newReward,
+  const calculateRewards = async () => {
+    // ✅ 从智能合约获取用户的实时奖励
+    try {
+      // ⚠️ 只有钱包连接且地址存在时才更新奖励
+      if (!walletStore.connected) {
+        console.debug('[CalculateRewards] Wallet not connected, skipping reward calculation')
+        return
       }
-    })
+
+      if (!walletStore.address) {
+        console.debug('[CalculateRewards] Wallet address not available, skipping reward calculation')
+        return
+      }
+
+      // 从合约获取未领取的奖励
+      const earnedBigInt = await getEarned(walletStore.address)
+      const earnedFormatted = Number(formatEther(BigInt(earnedBigInt)))
+      
+      // 更新全局奖励状态
+      tokenRewards.value = earnedFormatted
+      console.log('[CalculateRewards] Updated rewards from contract:', earnedFormatted)
+
+      // ✅ 同步更新本地质押记录中对应代币的奖励
+      // 注意：这里只更新选中代币的奖励，如果需要所有代币的奖励，应遍历所有质押
+      if (selectedTokenId.value) {
+        userStakes.value = userStakes.value.map((stake) => {
+          if (stake.tokenId === selectedTokenId.value) {
+            return {
+              ...stake,
+              reward: earnedFormatted,
+            }
+          }
+          return stake
+        })
+      }
+    } catch (error) {
+      console.error('[CalculateRewards] Error calculating rewards from contract:', error)
+    }
   }
 
   // 方法 - 清除消息
@@ -462,15 +521,8 @@ export const useStakingStore = defineStore('staking', () => {
     successMessage.value = ''
   }
 
-  // 每30秒自动计算一次奖励
-  const startRewardCalculation = () => {
-    calculateRewards()
-    setInterval(calculateRewards, 30000)
-  }
-
   // 初始化
   init()
-  startRewardCalculation()
 
   return {
     stakingTokens,
