@@ -607,8 +607,8 @@ export const useStakingStore = defineStore('staking', () => {
       }
 
       // 从合约获取未领取的奖励
-      const earnedBigInt = await getEarned(walletStore.address)
-      const earnedFormatted = Number(formatEther(BigInt(earnedBigInt)))
+      const earnedToken = await getEarned(walletStore.address)
+      const earnedFormatted = Number(formatEther(earnedToken))
       
       // 更新全局奖励状态
       tokenRewards.value = earnedFormatted

@@ -226,8 +226,8 @@ export async function getStakedBalance(userAddress: string) {
  */
 export async function getEarned(userAddress: string) {
   try {
-    const stakingContract = await getStakingRewardContract()
-    const earned = await stakingContract.earned(userAddress)
+    const stakingRewardContract = await getStakingRewardContract()
+    const earned = await stakingRewardContract.earned(userAddress)
     return earned.toString()
   } catch (error) {
     console.error('[Contract Utils] Error getting earned rewards:', error)
