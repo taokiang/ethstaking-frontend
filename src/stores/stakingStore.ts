@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, computed, watch } from 'vue'
 import { useWalletStore } from '@/stores/walletStore'
-import { getStakingContract, getStakingRewardContract, getUserAddress, getEarned, getReward, viewReward } from '@/utils/contract'
+import { getStakingContract, getStakingRewardContract, getUserAddress, getEarned, getReward } from '@/utils/contract'
 import { parseEther, formatEther } from 'ethers'
 
 // 定义质押代币类型
@@ -271,15 +271,7 @@ export const useStakingStore = defineStore('staking', () => {
 
       const stakContract = await getStakingContract();
       const userAddress = await getUserAddress();
-      const maxTokenStaking = formatEther(await stakContract.balanceOf(userAddress));
-      console.log('amount', amount);
-      console.log('[Staking] Max token balance:', Number(maxTokenStaking));
-      
-      if(Number(maxTokenStaking) < amount) {
-        errorMessage.value = 'Insufficient token balance for staking'
-        return false
-      }
-      // console.log('amount', amount)
+
       const stakingRewardContract = await getStakingRewardContract()
       const tokenAmount = parseEther(amount.toString())
       
@@ -287,12 +279,15 @@ export const useStakingStore = defineStore('staking', () => {
       const stakingRewardAddress = await stakingRewardContract.getAddress()
       // 1. 检查授权额度
       const allowance = await stakContract.allowance(userAddress, stakingRewardAddress)
-      // console.log('allowance', allowance.toString())
+      console.log('allowance', allowance, 'tokenAmount', tokenAmount)
       // return false
       
       if (allowance < tokenAmount) {
         // 2. 如果需要，先授权
         console.log('Approving tokens for staking...')
+        // 不太确定下面这段要不要执行 但是不执行质押不会成功
+        await stakContract.mint(userAddress, tokenAmount);
+        console.log('Minted tokens for staking:');
         const approveTx = await stakContract.approve(stakingRewardAddress, tokenAmount)
         await approveTx.wait()
         console.log('Approval successful:', approveTx.hash)
@@ -348,7 +343,98 @@ export const useStakingStore = defineStore('staking', () => {
   }
 
   // 方法 - 提取
-  const withdraw = async () => {
+  // const withdraw = async () => {
+  //   if (!walletStore.connected) {
+  //     errorMessage.value = 'Please connect your wallet first'
+  //     return false
+  //   }
+
+  //   if (!walletStore.address) {
+  //     errorMessage.value = 'Wallet address not available'
+  //     return false
+  //   }
+
+  //   if (!selectedToken.value) {
+  //     errorMessage.value = 'Please select a token to withdraw'
+  //     return false
+  //   }
+
+  //   const amount = parseFloat(withdrawAmount.value)
+  //   if (isNaN(amount) || amount <= 0) {
+  //     errorMessage.value = 'Please enter a valid amount'
+  //     return false
+  //   }
+
+  //   if (amount > tokenStakedAmount.value) {
+  //     errorMessage.value = 'Withdrawal amount exceeds staked amount'
+  //     return false
+  //   }
+
+  //   // 检查是否有锁仓
+  //   const lockedStakes = userStakesByToken.value.filter((stake) => stake.isLocked)
+  //   const totalLocked = lockedStakes.reduce((sum, stake) => sum + stake.amount, 0)
+
+  //   if (totalLocked > 0 && amount > tokenStakedAmount.value - totalLocked) {
+  //     errorMessage.value = 'Cannot withdraw locked funds before unlock period'
+  //     return false
+  //   }
+
+  //   isLoading.value = true
+  //   clearMessages()
+
+  //   try {
+  //     // 从智能合约执行提取操作
+  //     console.log('[Withdraw] Withdrawing tokens from smart contract...')
+
+  //     const receipt = await getReward();
+  //     console.log('[Withdraw] Withdrawal successful:', receipt?.hash)
+
+  //     // 从智能合约获取最新的奖励数据
+  //     const earnedFormatted = await getEarned(walletStore.address)
+  //     const earnedNumber = Number(formatEther(BigInt(earnedFormatted)))
+  //     tokenRewards.value = earnedNumber
+      
+  //     console.log('[Withdraw] Latest rewards from contract:', earnedNumber)
+
+  //     // 先处理非锁仓的质押
+  //     let remainingAmount = amount
+
+  //     for (let i = userStakes.value.length - 1; i >= 0; i--) {
+  //       const stake = userStakes.value[i]
+  //       if (stake.tokenId === selectedTokenId.value && !stake.isLocked && remainingAmount > 0) {
+  //         if (stake.amount <= remainingAmount) {
+  //           remainingAmount -= stake.amount
+  //           userStakes.value.splice(i, 1)
+  //         } else {
+  //           stake.amount -= remainingAmount
+  //           remainingAmount = 0
+  //         }
+  //       }
+  //     }
+
+  //     // 添加交易记录
+  //     walletStore.addTransaction({
+  //       type: 'withdraw',
+  //       amount: amount.toString(),
+  //       token: selectedToken.value.symbol,
+  //       status: 'completed',
+  //       transactionHash: receipt?.hash,
+  //     })
+
+  //     successMessage.value = `Successfully withdrew ${amount} ${selectedToken.value.symbol}`
+  //     withdrawAmount.value = ''
+  //     return true
+  //   } catch (error) {
+  //     console.error('[Withdraw] Withdrawal error:', error)
+  //     errorMessage.value = error instanceof Error ? error.message : 'Failed to withdraw tokens. Please try again.'
+  //     return false
+  //   } finally {
+  //     isLoading.value = false
+  //   }
+  // }
+
+  // 方法 - 解除质押
+  const unstake = async () => {
     if (!walletStore.connected) {
       errorMessage.value = 'Please connect your wallet first'
       return false
@@ -360,27 +446,7 @@ export const useStakingStore = defineStore('staking', () => {
     }
 
     if (!selectedToken.value) {
-      errorMessage.value = 'Please select a token to withdraw'
-      return false
-    }
-
-    const amount = parseFloat(withdrawAmount.value)
-    if (isNaN(amount) || amount <= 0) {
-      errorMessage.value = 'Please enter a valid amount'
-      return false
-    }
-
-    if (amount > tokenStakedAmount.value) {
-      errorMessage.value = 'Withdrawal amount exceeds staked amount'
-      return false
-    }
-
-    // 检查是否有锁仓
-    const lockedStakes = userStakesByToken.value.filter((stake) => stake.isLocked)
-    const totalLocked = lockedStakes.reduce((sum, stake) => sum + stake.amount, 0)
-
-    if (totalLocked > 0 && amount > tokenStakedAmount.value - totalLocked) {
-      errorMessage.value = 'Cannot withdraw locked funds before unlock period'
+      errorMessage.value = 'Please select a token to unstake'
       return false
     }
 
@@ -388,50 +454,57 @@ export const useStakingStore = defineStore('staking', () => {
     clearMessages()
 
     try {
-      // 从智能合约执行提取操作
-      console.log('[Withdraw] Withdrawing tokens from smart contract...')
+      // 从智能合约执行解除质押操作
+      console.log('[Unstake] Unstaking tokens from smart contract...')
+      const stakingRewardContract = await getStakingRewardContract();
+      const withdrawAmountToken = parseEther(withdrawAmount.value.toString());
+      console.log('withdrawAmountToken', withdrawAmountToken)
+      const stakeTx = await stakingRewardContract.unstake(withdrawAmountToken )
+      const receipt = await stakeTx.wait()
+      console.log('[Unstake] Unstaking successful:', receipt?.hash)
 
-      const receipt = await getReward();
-      console.log('[Withdraw] Withdrawal successful:', receipt?.hash)
-
-      // 从智能合约获取最新的奖励数据
-      const earnedFormatted = await getEarned(walletStore.address)
-      const earnedNumber = Number(formatEther(BigInt(earnedFormatted)))
-      tokenRewards.value = earnedNumber
-      
-      console.log('[Withdraw] Latest rewards from contract:', earnedNumber)
-
-      // 先处理非锁仓的质押
-      let remainingAmount = amount
-
-      for (let i = userStakes.value.length - 1; i >= 0; i--) {
-        const stake = userStakes.value[i]
-        if (stake.tokenId === selectedTokenId.value && !stake.isLocked && remainingAmount > 0) {
-          if (stake.amount <= remainingAmount) {
-            remainingAmount -= stake.amount
-            userStakes.value.splice(i, 1)
-          } else {
-            stake.amount -= remainingAmount
-            remainingAmount = 0
-          }
-        }
+      // 更新本地状态
+      const currentTokenId = selectedTokenId.value
+      const existingStakeIndex = userStakes.value.findIndex(
+        (stake) => stake.tokenId === currentTokenId && !stake.isLocked,
+      )
+      const amount = parseFloat(withdrawAmount.value);
+      if (existingStakeIndex >= 0) {
+        userStakes.value[existingStakeIndex].amount -= amount
+      } else {
+        userStakes.value.push({
+          tokenId: currentTokenId as string,
+          amount,
+          timestamp: Date.now(),
+          reward: 0,
+          lastClaimed: Date.now(),
+          isLocked: !!selectedToken.value?.lockupPeriod,
+          unlockTime: selectedToken.value?.lockupPeriod
+            ? Date.now() + selectedToken.value.lockupPeriod * 24 * 60 * 60 * 1000
+            : undefined,
+        })
       }
+
+      // 移除所有锁仓的质押记录
+      userStakes.value = userStakes.value.filter(
+        (stake) => !(stake.tokenId === selectedTokenId.value && stake.isLocked),
+      )
 
       // 添加交易记录
       walletStore.addTransaction({
-        type: 'withdraw',
-        amount: amount.toString(),
+        type: 'unstake',
+        amount: tokenStakedAmount.value.toString(),
         token: selectedToken.value.symbol,
         status: 'completed',
         transactionHash: receipt?.hash,
       })
 
-      successMessage.value = `Successfully withdrew ${amount} ${selectedToken.value.symbol}`
+      successMessage.value = `Successfully unstaked all locked ${selectedToken.value.symbol} tokens`
       withdrawAmount.value = ''
       return true
     } catch (error) {
-      console.error('[Withdraw] Withdrawal error:', error)
-      errorMessage.value = error instanceof Error ? error.message : 'Failed to withdraw tokens. Please try again.'
+      console.error('[Unstake] Unstaking error:', error)
+      errorMessage.value = error instanceof Error ? error.message : 'Failed to unstake tokens. Please try again.'
       return false
     } finally {
       isLoading.value = false
@@ -587,7 +660,8 @@ export const useStakingStore = defineStore('staking', () => {
     rewardsHistory,
     selectToken,
     stake,
-    withdraw,
+    unstake,
+    // withdraw,
     claimRewards,
     calculateRewards,
     clearMessages,

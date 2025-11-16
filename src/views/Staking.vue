@@ -213,7 +213,7 @@
                     class="primary-btn w-full"
                     size="large"
                     :loading="stakingStore.isLoading"
-                    @click="handleWithdraw"
+                    @click="handleUnstake"
                     :disabled="!isWithdrawAmountValid"
                   >
                     Unstake {{ stakingStore.withdrawAmount }}
@@ -411,8 +411,8 @@ const handleStake = async () => {
 }
 
 // 方法 - 处理提取
-const handleWithdraw = async () => {
-  await stakingStore.withdraw()
+const handleUnstake = async () => {
+  await stakingStore.unstake()
 }
 
 // 方法 - 处理领取奖励

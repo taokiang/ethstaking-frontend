@@ -10,7 +10,7 @@ type TransactionStatus = 'idle' | 'pending' | 'success' | 'error'
 // 定义交易历史项
 interface TransactionHistoryItem {
   id: string
-  type: 'stake' | 'withdraw' | 'reward'
+  type: 'stake' | 'unstake' | 'withdraw' | 'reward'
   amount: string
   token: string
   timestamp: number
