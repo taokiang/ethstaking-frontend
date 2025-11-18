@@ -36,7 +36,7 @@ jobs:
           DIST_PATH=dist
           echo "Uploading dist folder to Pinata..."
           # 用 curl 上传整个 dist 目录
-          RESPONSE=$(curl -s -X POST "https://api.pinata.cloud/v3/files" \
+          RESPONSE=$(curl -s -X POST "https://api.pinata.cloud/pinning/pinFileToIPFS" \
             -H "Authorization: Bearer $PINATA_JWT" \
             -F "file=@${DIST_PATH};type=application/x-directory" \
             -F 'pinataMetadata={"name":"my-dapp"}' \
