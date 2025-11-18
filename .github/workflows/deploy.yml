@@ -1,56 +1,96 @@
-name: Deploy DApp to Pinata
+# .github/workflows/deploy.yml
+name: Deploy to IPFS via Pinata
 
 on:
   push:
-    branches: ["main"]
+    branches: [ main ]        # 只在 main 分支有新提交时触发
+  workflow_dispatch:          # 支持手动点按钮触发
 
 jobs:
-  build-and-upload:
+  deploy:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write              # 允许在 PR 下留言
 
     steps:
-      # 1. Checkout code
-      - name: Checkout code
+      - name: Checkout代码
         uses: actions/checkout@v4
 
-      # 2. Setup Node.js
-      - name: Setup Node
+      - name: 安装 Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 22
+          cache: 'npm'                  # 自动缓存 node_modules，第二次超快
 
-      # 3. Install dependencies
-      - name: Install dependencies
+      - name: 安装依赖
         run: npm install
 
-      # 4. Build Vue + Vite project
-      - name: Build project
+      - name: 构建 Vue 项目
         run: npm run build
 
-      # 5. Upload dist folder to Pinata using v3 API
-      - name: Upload to Pinata
-        id: pinata
+      - name: 安装 Pinata SDK
+        run: npm install pinata@latest
+
+      - name: 上传 dist 到 Pinata（使用 JWT）
         env:
           PINATA_JWT: ${{ secrets.PINATA_JWT }}
         run: |
-          DIST_PATH=dist
-          echo "Uploading dist folder to Pinata..."
-          # 用 curl 上传整个 dist 目录
-          RESPONSE=$(curl -s -X POST "https://api.pinata.cloud/pinning/pinFileToIPFS" \
-            -H "Authorization: Bearer $PINATA_JWT" \
-            -F "file=@${DIST_PATH};type=application/x-directory" \
-            -F 'pinataMetadata={"name":"my-dapp"}' \
-            -F 'pinataOptions={"cidVersion":1}')
-          
-          # 输出返回的 JSON
-          echo "Response from Pinata: $RESPONSE"
+          node - <<'EOF'
+          import { PinataSDK } from "pinata";
+          import fs from "fs";
+          import path from "path";
 
-          # 解析 CID 并保存为输出
-          CID=$(echo $RESPONSE | jq -r '.data.cid')
-          echo "DApp CID: $CID"
-          echo "::set-output name=cid::$CID"
+          const pinata = new PinataSDK({
+            pinataJwt: process.env.PINATA_JWT,
+            pinataGateway: "gateway.mypinata.cloud"
+          });
 
-      # 6. 输出访问 URL
-      - name: Show access URL
+          async function getFiles(dir, base = "") {
+            let results = [];
+            const list = fs.readdirSync(dir);
+            for (const file of list) {
+              const fullPath = path.join(dir, file);
+              if (fs.statSync(fullPath).isDirectory()) {
+                results = results.concat(await getFiles(fullPath, path.join(base, file)));
+              } else {
+                const content = fs.readFileSync(fullPath);
+                const relative = base ? path.join(base, file) : file;
+                results.push(new File([content], relative));
+              }
+            }
+            return results;
+          }
+
+          const files = await getFiles("dist");
+          const upload = await pinata.upload.public
+            .fileArray(files)
+            .name(`ethstaking-frontend - ${{ github.sha }}`)
+            .keyvalues({ commit: "${{ github.sha }}", actor: "${{ github.actor }}" });
+
+          const cid = upload.cid;
+          const url = `https://${cid}.ipfs.dweb.link`;
+
+          console.log("IPFS CID:", cid);
+          console.log("永久访问地址:", url);
+
+          // 把结果写到环境变量，后面步骤能用
+          console.log("IPFS_URL=" + url + ">> $GITHUB_ENV");
+          EOF
+
+      - name: 在 PR 下自动留言（如果有 PR）
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: `🚀 DApp 已自动部署到 IPFS！\n\n**永久地址：** ${{ env.IPFS_URL }}\n\n快去试试吧～`
+            })
+
+      - name: 成功提示（push 到 main 时）
+        if: github.event_name == 'push'
         run: |
-          echo "Your DApp is available at: https://${{ steps.pinata.outputs.cid }}.ipfs.dweb.link"
+          echo "DApp 已部署！永久地址：$IPFS_URL"
