@@ -1,0 +1,37 @@
+name: Deploy DApp to Pinata
+
+on:
+  push:
+    branches: ["main"]
+
+jobs:
+  build-and-upload:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Build project
+        run: npm run build
+
+      - name: Upload to Pinata
+        run: |
+          cd dist
+          zip -r ../dist.zip .
+          cd ..
+          curl -X POST "https://api.pinata.cloud/pinning/pinFileToIPFS" \
+            -H "Authorization: Bearer ${{ secrets.PINATA_JWT }}" \
+            -H "pinataMetadata: {\"name\": \"my-dapp\"}" \
+            -F file=@dist.zip
+      - name: Output IPFS Hash
+        run: echo "DApp deployed to IPFS via Pinata."
+
