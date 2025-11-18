@@ -1,4 +1,4 @@
-import { createRouter, createWebHistory, type RouteRecordRaw } from 'vue-router'
+import { createRouter, createWebHashHistory, type RouteRecordRaw } from 'vue-router'
 
 import Dashboard from '@/views/Dashboard.vue'
 import Staking from '@/views/Staking.vue'
@@ -44,7 +44,7 @@ const routes: RouteRecordRaw[] = [
   },
 ]
 const router = createRouter({
-  history: createWebHistory(import.meta.env.VITE_BASE_URL),
+  history: createWebHashHistory(import.meta.env.VITE_BASE_URL),
   routes,
   scrollBehavior() {
     // 始终滚动到顶部
