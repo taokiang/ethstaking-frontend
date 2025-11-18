@@ -1,1 +1,1 @@
-https://<CID>.ipfs.dweb.link
+https://{cid}.ipfs.dweb.link
