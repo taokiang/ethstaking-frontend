@@ -45,15 +45,15 @@ const STAKING_TOKENS: StakingToken[] = [
   {
     id: '1',
     name: 'Ethereum',
-    symbol: 'ETH',
+    symbol: 'GLD1',
     address: import.meta.env.VITE_TOKEN1_ADDRESS,
     icon: 'https://picsum.photos/id/237/40/40',
     apy: 8.5,
     totalStaked: 12500,
     rewardToken: import.meta.env.VITE_TOKEN2_ADDRESS,
-    rewardTokenSymbol: 'ETH',
+    rewardTokenSymbol: 'GLD2',
     isActive: true,
-    description: 'Stake Ethereum to earn ETH tokens as rewards. No lockup period.',
+    description: 'Stake Ethereum to earn GLD2 tokens as rewards. No lockup period.',
   },
   // {
   //   id: '2',

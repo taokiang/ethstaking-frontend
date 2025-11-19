@@ -240,8 +240,8 @@ export async function getEarned(userAddress: string) {
  */
 export async function getReward() {
   try {
-    const stakingContract = await getStakingRewardContract()
-    const tx = await stakingContract.getReward()
+    const stakingRewardContract = await getStakingRewardContract()
+    const tx = await stakingRewardContract.getReward()
     const receipt = await tx.wait()
     console.log('[Contract Utils] Reward claimed successfully')
     return receipt
