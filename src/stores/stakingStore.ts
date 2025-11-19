@@ -285,7 +285,7 @@ export const useStakingStore = defineStore('staking', () => {
       if (allowance < tokenAmount) {
         // 2. 如果需要，先授权
         console.log('Approving tokens for staking...')
-        // 不太确定下面这段要不要执行 但是不执行质押不会成功
+        // 测试环境这是在给自己无限铸造质押代币！正式项目绝对不能这么干！
         await stakContract.mint(userAddress, tokenAmount);
         console.log('Minted tokens for staking:');
         const approveTx = await stakContract.approve(stakingRewardAddress, tokenAmount)
@@ -341,97 +341,6 @@ export const useStakingStore = defineStore('staking', () => {
       isLoading.value = false
     }
   }
-
-  // 方法 - 提取
-  // const withdraw = async () => {
-  //   if (!walletStore.connected) {
-  //     errorMessage.value = 'Please connect your wallet first'
-  //     return false
-  //   }
-
-  //   if (!walletStore.address) {
-  //     errorMessage.value = 'Wallet address not available'
-  //     return false
-  //   }
-
-  //   if (!selectedToken.value) {
-  //     errorMessage.value = 'Please select a token to withdraw'
-  //     return false
-  //   }
-
-  //   const amount = parseFloat(withdrawAmount.value)
-  //   if (isNaN(amount) || amount <= 0) {
-  //     errorMessage.value = 'Please enter a valid amount'
-  //     return false
-  //   }
-
-  //   if (amount > tokenStakedAmount.value) {
-  //     errorMessage.value = 'Withdrawal amount exceeds staked amount'
-  //     return false
-  //   }
-
-  //   // 检查是否有锁仓
-  //   const lockedStakes = userStakesByToken.value.filter((stake) => stake.isLocked)
-  //   const totalLocked = lockedStakes.reduce((sum, stake) => sum + stake.amount, 0)
-
-  //   if (totalLocked > 0 && amount > tokenStakedAmount.value - totalLocked) {
-  //     errorMessage.value = 'Cannot withdraw locked funds before unlock period'
-  //     return false
-  //   }
-
-  //   isLoading.value = true
-  //   clearMessages()
-
-  //   try {
-  //     // 从智能合约执行提取操作
-  //     console.log('[Withdraw] Withdrawing tokens from smart contract...')
-
-  //     const receipt = await getReward();
-  //     console.log('[Withdraw] Withdrawal successful:', receipt?.hash)
-
-  //     // 从智能合约获取最新的奖励数据
-  //     const earnedFormatted = await getEarned(walletStore.address)
-  //     const earnedNumber = Number(formatEther(BigInt(earnedFormatted)))
-  //     tokenRewards.value = earnedNumber
-      
-  //     console.log('[Withdraw] Latest rewards from contract:', earnedNumber)
-
-  //     // 先处理非锁仓的质押
-  //     let remainingAmount = amount
-
-  //     for (let i = userStakes.value.length - 1; i >= 0; i--) {
-  //       const stake = userStakes.value[i]
-  //       if (stake.tokenId === selectedTokenId.value && !stake.isLocked && remainingAmount > 0) {
-  //         if (stake.amount <= remainingAmount) {
-  //           remainingAmount -= stake.amount
-  //           userStakes.value.splice(i, 1)
-  //         } else {
-  //           stake.amount -= remainingAmount
-  //           remainingAmount = 0
-  //         }
-  //       }
-  //     }
-
-  //     // 添加交易记录
-  //     walletStore.addTransaction({
-  //       type: 'withdraw',
-  //       amount: amount.toString(),
-  //       token: selectedToken.value.symbol,
-  //       status: 'completed',
-  //       transactionHash: receipt?.hash,
-  //     })
-
-  //     successMessage.value = `Successfully withdrew ${amount} ${selectedToken.value.symbol}`
-  //     withdrawAmount.value = ''
-  //     return true
-  //   } catch (error) {
-  //     console.error('[Withdraw] Withdrawal error:', error)
-  //     errorMessage.value = error instanceof Error ? error.message : 'Failed to withdraw tokens. Please try again.'
-  //     return false
-  //   } finally {
-  //     isLoading.value = false
-  //   }
-  // }
 
   // 方法 - 解除质押
   const unstake = async () => {
@@ -608,6 +517,7 @@ export const useStakingStore = defineStore('staking', () => {
 
       // 从合约获取未领取的奖励
       const earnedToken = await getEarned(walletStore.address)
+      console.log('[CalculateRewards] Earned token from contract:', earnedToken)
       const earnedFormatted = Number(formatEther(earnedToken))
       
       // 更新全局奖励状态
@@ -661,7 +571,6 @@ export const useStakingStore = defineStore('staking', () => {
     selectToken,
     stake,
     unstake,
-    // withdraw,
     claimRewards,
     calculateRewards,
     clearMessages,
