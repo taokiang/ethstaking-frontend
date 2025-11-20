@@ -279,22 +279,17 @@ export const useStakingStore = defineStore('staking', () => {
       const stakingRewardAddress = await stakingRewardContract.getAddress()
       // 1. 检查授权额度
       const allowance = await stakContract.allowance(userAddress, stakingRewardAddress)
-      console.log('allowance', allowance, 'tokenAmount', tokenAmount)
-      // return false
       
       if (allowance < tokenAmount) {
         // 2. 如果需要，先授权
         console.log('Approving tokens for staking...')
-        // 测试环境这是在给自己无限铸造质押代币！正式项目绝对不能这么干！
-        await stakContract.mint(userAddress, tokenAmount);
-        console.log('Minted tokens for staking:');
         const approveTx = await stakContract.approve(stakingRewardAddress, tokenAmount)
         await approveTx.wait()
         console.log('Approval successful:', approveTx.hash)
       }
       
       // 3. 执行质押
-      console.log('Staking tokens...')
+      console.log('Staking tokens...', tokenAmount.toString())
       const stakeTx = await stakingRewardContract.stake(tokenAmount)
       const receipt = await stakeTx.wait()
       console.log('Staking successful:', receipt?.hash)
@@ -521,7 +516,6 @@ export const useStakingStore = defineStore('staking', () => {
 
       // 从合约获取未领取的奖励
       const earnedToken = await getEarned(walletStore.address)
-      console.log('[CalculateRewards] Earned token from contract:', earnedToken)
       const earnedFormatted = Number(formatEther(earnedToken))
       
       // 更新全局奖励状态

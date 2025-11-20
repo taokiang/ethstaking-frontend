@@ -113,13 +113,13 @@
                     </div>
                     <div class="amount-info mt-10">
                       <span class="available-balance"
-                        >Available: {{ walletStore.balance }}
+                        >Available: {{ stakedBalance }}
                         {{ stakingStore.selectedToken.symbol }}</span
                       >
                       <a-button
                         type="text"
                         class="max-btn"
-                        @click="stakingStore.stakingAmount = walletStore.balance"
+                        @click="stakingStore.stakingAmount = stakedBalance; validateStakeAmount(stakedBalance)"
                       >
                         Max
                       </a-button>
@@ -312,6 +312,11 @@ import { ref, computed, onMounted, watch } from 'vue'
 import { useWalletStore } from '@/stores/walletStore'
 import { useStakingStore } from '@/stores/stakingStore'
 import { message } from 'ant-design-vue'
+import { getStakedBalance } from '@/utils/contract'
+import { formatEther } from 'ethers'
+
+// 质押代币
+const stakedBalance = ref('0')
 
 // 状态
 const isStakeAmountValid = ref(false)
@@ -387,9 +392,8 @@ const handleTokenSelect = (tokenId: string) => {
 
 // 方法 - 验证质押数量
 const validateStakeAmount = (value: string) => {
-  const amount = parseFloat(value)
-  const balance = parseFloat(walletStore.balance)
-
+  const amount = parseFloat(value || '0')
+  const balance = parseFloat(stakedBalance.value)
   isStakeAmountValid.value = !isNaN(amount) && amount > 0 && amount <= balance
 }
 
@@ -419,11 +423,19 @@ const handleUnstake = async () => {
 const handleClaimRewards = async () => {
   await stakingStore.claimRewards()
 }
+// 监听钱包地址变化，更新质押余额
+watch(
+  () => walletStore.address,
+  async (newVal) => {
+    stakedBalance.value = formatEther(
+      await getStakedBalance(newVal as string),
+    )
+  },
+)
 
 // 页面加载时计算奖励
-onMounted(() => {
+onMounted(async () => {
   stakingStore.calculateRewards()
-
   // 初始化验证
   validateStakeAmount(stakingStore.stakingAmount)
   validateWithdrawAmount(stakingStore.withdrawAmount)

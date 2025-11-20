@@ -77,7 +77,7 @@ async function ensureProviderAndSigner() {
     cache.signer = await cache.provider.getSigner()
     cache.address = walletStore.address
 
-    console.log('[Contract Utils] Provider and signer initialized for address:', cache.address)
+    // console.log('[Contract Utils] Provider and signer initialized for address:', cache.address)
 
     return { provider: cache.provider, signer: cache.signer }
   } catch (error) {
@@ -192,29 +192,13 @@ export async function getUserAddress() {
  * @param userAddress - 用户地址
  * @returns 余额（wei 单位的字符串）
  */
-export async function getTokenBalance(userAddress: string) {
+export async function getStakedBalance(userAddress: string) {
   try {
     const token1Contract = await getStakingContract()
     const balance = await token1Contract.balanceOf(userAddress)
     return balance.toString()
   } catch (error) {
     console.error('[Contract Utils] Error getting token balance:', error)
-    throw error
-  }
-}
-
-/**
- * 获取用户在质押合约中的质押余额
- * @param userAddress - 用户地址
- * @returns 质押余额（wei 单位的字符串）
- */
-export async function getStakedBalance(userAddress: string) {
-  try {
-    const stakingContract = await getStakingRewardContract()
-    const balance = await stakingContract.balanceOf(userAddress)
-    return balance.toString()
-  } catch (error) {
-    console.error('[Contract Utils] Error getting staked balance:', error)
     throw error
   }
 }
