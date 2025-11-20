@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, computed, watch } from 'vue'
 import { useWalletStore } from '@/stores/walletStore'
-import { getStakingContract, getStakingRewardContract, getUserAddress, getEarned, getReward } from '@/utils/contract'
+import { getStakingContract, getStakingRewardContract, getUserAddress, getEarned, getReward, viewReward } from '@/utils/contract'
 import { parseEther, formatEther } from 'ethers'
 
 // 定义质押代币类型
@@ -443,18 +443,29 @@ export const useStakingStore = defineStore('staking', () => {
     try {
       // 从智能合约领取奖励
       console.log('[ClaimRewards] Claiming rewards from smart contract...')
-      const rewardsToClaim = tokenRewards.value
-      
+
+      // 为了确保历史记录的 amount 与区块链上实际收到的金额一致，
+      // 在调用 getReward 前后读取奖励代币合约的余额并用差值作为实际收到量。
+      const userAddress = await getUserAddress()
+      const beforeStr = await viewReward(userAddress)
+      const beforeBn = BigInt(beforeStr)
+
       // 调用合约的 getReward 方法提取奖励
       const receipt = await getReward()
-      console.log('[ClaimRewards] Rewards claimed successfully')
+      console.log('[ClaimRewards] Rewards claimed tx:', receipt?.transactionHash || receipt)
 
-      // 将奖励记录添加到历史
+      const afterStr = await viewReward(userAddress)
+      const afterBn = BigInt(afterStr)
+
+      const receivedBn = afterBn - beforeBn
+      const receivedFormatted = Number(formatEther(receivedBn.toString()))
+
+      // 将奖励记录添加到历史（使用链上实际收到的金额）
       const rewardRecord: RewardHistory = {
         id: Date.now().toString(),
         date: Date.now(),
-        amount: rewardsToClaim,
-        transactionHash: receipt?.hash || undefined,
+        amount: receivedFormatted,
+        transactionHash: receipt?.hash || (receipt?.transactionHash as string) || undefined,
         status: 'completed',
       }
       rewardsHistory.value.unshift(rewardRecord)
@@ -475,16 +486,16 @@ export const useStakingStore = defineStore('staking', () => {
         return stake
       })
 
-      // 添加交易记录
+      // 添加交易记录（使用链上实际收到的金额）
       walletStore.addTransaction({
         type: 'reward',
-        amount: rewardsToClaim.toFixed(4),
+        amount: receivedFormatted.toFixed(4),
         token: selectedToken.value.rewardTokenSymbol,
         status: 'completed',
-        transactionHash: receipt?.hash,
+        transactionHash: receipt?.transactionHash,
       })
 
-      successMessage.value = `Successfully claimed ${rewardsToClaim.toFixed(4)} ${selectedToken.value.rewardTokenSymbol}`
+      successMessage.value = `Successfully claimed ${receivedFormatted.toFixed(4)} ${selectedToken.value.rewardTokenSymbol}`
       
       // 领取奖励后立即更新奖励
       await calculateRewards()
