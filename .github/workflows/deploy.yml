@@ -27,7 +27,7 @@ jobs:
         run: npm install
 
       - name: 构建 Vue 项目
-        run: npm run build
+        run: npm run build:test
 
       - name: 安装 Pinata SDK
         run: npm install pinata@latest
