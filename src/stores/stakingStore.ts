@@ -45,15 +45,15 @@ const STAKING_TOKENS: StakingToken[] = [
   {
     id: '1',
     name: 'Ethereum',
-    symbol: 'GLD1',
+    symbol: 'STAKE',
     address: import.meta.env.VITE_TOKEN1_ADDRESS,
     icon: 'https://picsum.photos/id/237/40/40',
     apy: 8.5,
     totalStaked: 12500,
     rewardToken: import.meta.env.VITE_TOKEN2_ADDRESS,
-    rewardTokenSymbol: 'GLD2',
+    rewardTokenSymbol: 'REWARD',
     isActive: true,
-    description: 'Stake Ethereum to earn GLD2 tokens as rewards. No lockup period.',
+    description: 'Stake Ethereum to earn REWARD tokens as rewards. No lockup period.',
   },
   // {
   //   id: '2',
@@ -490,6 +490,10 @@ export const useStakingStore = defineStore('staking', () => {
       })
 
       successMessage.value = `Successfully claimed ${rewardsToClaim.toFixed(4)} ${selectedToken.value.rewardTokenSymbol}`
+      
+      // 领取奖励后立即更新奖励
+      await calculateRewards()
+
       return true
     } catch (error) {
       console.error('[ClaimRewards] Reward claim error:', error)
