@@ -171,10 +171,10 @@ export const useStakingStore = defineStore('staking', () => {
         if (rewardCalculationInterval) {
           clearInterval(rewardCalculationInterval)
         }
-        // 启动定时器，每30秒更新一次
+        // 启动定时器，每10秒更新一次
         rewardCalculationInterval = setInterval(() => {
           calculateRewards()
-        }, 30000)
+        }, 10000)
       } else {
         console.log('[StakingStore] Wallet disconnected, stopping reward calculation...')
         // 钱包断开连接时清除定时器
