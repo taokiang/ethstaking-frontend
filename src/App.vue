@@ -29,8 +29,16 @@
                 Transactions
               </router-link>
             </li>
-            <li>
+            <!-- <li>
               <a href="#" class="nav-link">Learn</a>
+            </li> -->
+            <li v-if="isOwner">
+              <router-link
+                to="/admin"
+                :class="{ 'nav-link-active': $route.path === '/admin' }"
+              >
+                Admin
+              </router-link>
             </li>
           </ul>
         </nav>
@@ -108,6 +116,36 @@
 
 <script setup lang="ts">
 import WalletActions from '@/components/WalletActions.vue'
+import { ref, onMounted, watch } from 'vue'
+import { useWalletStore } from '@/stores/walletStore'
+import { getStakingOwner } from '@/utils/contract'
+
+const walletStore = useWalletStore()
+const isOwner = ref(false)
+
+async function refreshOwnerStatus() {
+  try {
+    if (!walletStore.address) {
+      isOwner.value = false
+      return
+    }
+    const owner = await getStakingOwner()
+    isOwner.value = owner && walletStore.address
+      ? owner.toLowerCase() === walletStore.address.toLowerCase()
+      : false
+  } catch (err) {
+    console.error('Failed to fetch staking owner:', err)
+    isOwner.value = false
+  }
+}
+
+onMounted(() => {
+  refreshOwnerStatus()
+})
+
+watch(() => walletStore.address, () => {
+  refreshOwnerStatus()
+})
 </script>
 
 <style lang="less" scoped>

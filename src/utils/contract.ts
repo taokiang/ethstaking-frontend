@@ -252,6 +252,72 @@ export async function viewReward(userAddress: string) {
 }
 
 /**
+ * Mint tokens (Token1)
+ * @param to - recipient address
+ * @param amountWei - amount in wei (string | BigNumber)
+ */
+export async function mintToken(to: string, amountWei: any) {
+  try {
+    const token1 = await getStakingContract()
+    const tx = await token1.mint(to, amountWei)
+    const receipt = await tx.wait()
+    console.log('[Contract Utils] Mint tx mined:', receipt?.transactionHash || receipt)
+    return receipt
+  } catch (error) {
+    console.error('[Contract Utils] Error minting tokens:', error)
+    throw error
+  }
+}
+
+/**
+ * Set rewards duration on staking contract
+ * @param seconds - duration in seconds
+ */
+export async function setRewardsDuration(seconds: number) {
+  try {
+    const staking = await getStakingRewardContract()
+    const tx = await staking.setRewardsDuration(seconds)
+    const receipt = await tx.wait()
+    console.log('[Contract Utils] setRewardsDuration tx mined:', receipt?.transactionHash || receipt)
+    return receipt
+  } catch (error) {
+    console.error('[Contract Utils] Error setting rewards duration:', error)
+    throw error
+  }
+}
+
+/**
+ * Notify reward amount on staking contract
+ * @param amountWei - amount in wei
+ */
+export async function notifyRewardAmount(amountWei: any) {
+  try {
+    const staking = await getStakingRewardContract()
+    const tx = await staking.notifyRewardAmount(amountWei)
+    const receipt = await tx.wait()
+    console.log('[Contract Utils] notifyRewardAmount tx mined:', receipt?.transactionHash || receipt)
+    return receipt
+  } catch (error) {
+    console.error('[Contract Utils] Error notifying reward amount:', error)
+    throw error
+  }
+}
+
+/**
+ * Get owner of staking reward contract
+ */
+export async function getStakingOwner() {
+  try {
+    const staking = await getStakingRewardContract()
+    const owner = await staking.owner()
+    return owner
+  } catch (error) {
+    console.error('[Contract Utils] Error getting staking owner:', error)
+    throw error
+  }
+}
+
+/**
  * 验证合约地址有效性
  */
 function validateAddress(address: string | undefined, envVarName: string) {
