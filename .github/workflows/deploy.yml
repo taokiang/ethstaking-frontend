@@ -3,36 +3,35 @@ name: Deploy to IPFS via Pinata
 
 on:
   push:
-    branches: [ main ]
-  pull_request:
-    types: [ opened, synchronize, reopened ]  # PR 时也触发部署预览
-  workflow_dispatch:
+    branches: [ main ]        # 只在 main 分支有新提交时触发
+  workflow_dispatch:          # 支持手动点按钮触发
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      pull-requests: write   # 允许评论 PR
 
     steps:
-      - name: Checkout 代码
+      - name: Checkout代码
         uses: actions/checkout@v4
 
       - name: 安装 Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: 'npm'
+          cache: 'npm'                  # 自动缓存 node_modules，第二次超快
 
       - name: 安装依赖
         run: npm install
 
-      - name: 构建项目
+      - name: 构建 Vue 项目
         run: npm run build:test
 
-      - name: 上传到 Pinata 并输出 URL
-        id: deploy_ipfs
+      - name: 安装 Pinata SDK
+        run: npm install pinata@latest
+
+      - name: 上传 dist 到 Pinata（使用 JWT）
         env:
           PINATA_JWT: ${{ secrets.PINATA_JWT }}
         run: |
@@ -40,88 +39,37 @@ jobs:
           import { PinataSDK } from "pinata";
           import fs from "fs";
           import path from "path";
-          import process from "process";
 
           const pinata = new PinataSDK({
             pinataJwt: process.env.PINATA_JWT,
             pinataGateway: "gateway.mypinata.cloud"
           });
 
-          async function getAllFiles(dir, base = "") {
-            let files = [];
-            const items = fs.readdirSync(dir);
-            for (const item of items) {
-              const fullPath = path.join(dir, item);
-              const stat = fs.statSync(fullPath);
-              if (stat.isDirectory()) {
-                files = files.concat(await getAllFiles(fullPath, path.join(base, item)));
+          async function getFiles(dir, base = "") {
+            let results = [];
+            const list = fs.readdirSync(dir);
+            for (const file of list) {
+              const fullPath = path.join(dir, file);
+              if (fs.statSync(fullPath).isDirectory()) {
+                results = results.concat(await getFiles(fullPath, path.join(base, file)));
               } else {
                 const content = fs.readFileSync(fullPath);
-                const filePath = base ? path.join(base, item) : item;
-                files.push(new File([content], filePath));
+                const relative = base ? path.join(base, file) : file;
+                results.push(new File([content], relative));
               }
             }
-            return files;
+            return results;
           }
 
-          const files = await getAllFiles("dist");
-
-          const upload = await pinata.upload.fileArray(files, {
-            name: `ethstaking-frontend - ${{ github.sha }}`,
-            keyvalues: {
-              commit: "${{ github.sha }}",
-              actor: "${{ github.actor }}",
-              branch: "${{ github.ref_name }}"
-            }
-          });
+          const files = await getFiles("dist");
+          const upload = await pinata.upload.public
+            .fileArray(files)
+            .name(`ethstaking-frontend - ${{ github.sha }}`)
+            .keyvalues({ commit: "${{ github.sha }}", actor: "${{ github.actor }}" });
 
           const cid = upload.cid;
           const url = `https://${cid}.ipfs.dweb.link`;
 
-          console.log("上传成功！");
           console.log("IPFS CID:", cid);
           console.log("永久访问地址:", url);
-
-          // 正确方式一：写入 GITHUB_OUTPUT（推荐！后面所有 step 都能用）
-          const outputPath = process.env.GITHUB_OUTPUT;
-          require('fs').appendFileSync(outputPath, `url=${url}\ncid=${cid}\n`);
-
           EOF
-
-      # 在 Actions 的 Summary 里醒目展示（最推荐！）
-      - name: 更新部署摘要（大字链接）
-        run: |
-          echo "## IPFS 部署成功！" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**永久预览地址**" >> $GITHUB_STEP_SUMMARY
-          echo "${{ steps.deploy_ipfs.outputs.url }}" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "CID: \`${{ steps.deploy_ipfs.outputs.cid }}\`" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "部署者：@${{ github.actor }} • $(date '+%Y-%m-%d %H:%M')" >> $GITHUB_STEP_SUMMARY
-
-      # PR 自动评论（支持 push 和 pull_request 两种触发）
-      - name: 在 PR 下自动评论部署链接
-        if: github.event_name == 'pull_request'
-        uses: actions/github-script@v7
-        with:
-          script: |
-            github.rest.issues.createComment({
-              issue_number: context.issue.number,
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              body: `DApp 已自动部署到 IPFS！\n\n**永久预览地址：** ${{ steps.deploy_ipfs.outputs.url }}\n\nCID: \`${{ steps.deploy_ipfs.outputs.cid }}\`\n\n快去测试吧～`
-            })
-
-      # push 到 main 时也在 commit 下留个评论（可选）
-      - name: 在 Commit 下评论（main 部署）
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-        uses: actions/github-script@v7
-        with:
-          script: |
-            github.rest.repos.createCommitComment({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              commit_sha: context.sha,
-              body: `最新版本已部署到 IPFS！\n\n链接：${{ steps.deploy_ipfs.outputs.url }}\n\nCID: \`${{ steps.deploy_ipfs.outputs.cid }}\``
-            })
