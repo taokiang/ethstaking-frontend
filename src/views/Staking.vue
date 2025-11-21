@@ -87,12 +87,7 @@
                           {{ stakingStore.selectedToken.symbol }}
                         </div>
                       </div>
-                      <div v-if="stakingStore.selectedToken.lockupPeriod" class="stat-item">
-                        <div class="stat-label">Lockup Period</div>
-                        <div class="stat-value">
-                          {{ stakingStore.selectedToken.lockupPeriod }} days
-                        </div>
-                      </div>
+                      <!-- lockup removed -->
                     </div>
                   </div>
                 </div>
@@ -200,7 +195,8 @@
                         type="text"
                         class="max-btn"
                         @click="
-                          stakingStore.withdrawAmount = stakingStore.tokenStakedAmount.toString()
+                          stakingStore.withdrawAmount = stakingStore.tokenStakedAmount.toString();
+                          validateWithdrawAmount(stakingStore.tokenStakedAmount.toString())
                         "
                       >
                         Max

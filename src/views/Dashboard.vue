@@ -162,6 +162,9 @@
               <template v-if="column.dataIndex === 'apy'">
                 {{ getTokenApy(record.tokenId) }}%
               </template>
+              <template v-if="column.dataIndex === 'timestamp'">
+                {{ new Date(record.timestamp).toLocaleString([], { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit' }) }}
+              </template>
               <template v-if="column.dataIndex === 'actions'">
                 <a-button size="small" type="text" @click="handleManageStake(record.tokenId)">
                   Manage

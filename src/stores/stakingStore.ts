@@ -15,7 +15,6 @@ export interface StakingToken {
   totalStaked: number
   rewardToken: string
   rewardTokenSymbol: string
-  lockupPeriod?: number // 锁仓周期（天）
   isActive: boolean
   description: string
 }
@@ -27,8 +26,7 @@ export interface UserStake {
   timestamp: number
   reward: number
   lastClaimed: number
-  isLocked: boolean
-  unlockTime?: number
+  // lockup fields removed
 }
 
 // 定义奖励历史接口
@@ -297,7 +295,7 @@ export const useStakingStore = defineStore('staking', () => {
       // 4. 更新本地状态
       const currentTokenId = selectedTokenId.value
       const existingStakeIndex = userStakes.value.findIndex(
-        (stake) => stake.tokenId === currentTokenId && !stake.isLocked,
+        (stake) => stake.tokenId === currentTokenId,
       )
       
       if (existingStakeIndex >= 0) {
@@ -309,10 +307,6 @@ export const useStakingStore = defineStore('staking', () => {
           timestamp: Date.now(),
           reward: 0,
           lastClaimed: Date.now(),
-          isLocked: !!selectedToken.value?.lockupPeriod,
-          unlockTime: selectedToken.value?.lockupPeriod
-            ? Date.now() + selectedToken.value.lockupPeriod * 24 * 60 * 60 * 1000
-            : undefined,
         })
       }
       
@@ -370,7 +364,7 @@ export const useStakingStore = defineStore('staking', () => {
       // 更新本地状态
       const currentTokenId = selectedTokenId.value
       const existingStakeIndex = userStakes.value.findIndex(
-        (stake) => stake.tokenId === currentTokenId && !stake.isLocked,
+        (stake) => stake.tokenId === currentTokenId,
       )
       const amount = parseFloat(withdrawAmount.value);
       if (existingStakeIndex >= 0) {
@@ -382,22 +376,13 @@ export const useStakingStore = defineStore('staking', () => {
           timestamp: Date.now(),
           reward: 0,
           lastClaimed: Date.now(),
-          isLocked: !!selectedToken.value?.lockupPeriod,
-          unlockTime: selectedToken.value?.lockupPeriod
-            ? Date.now() + selectedToken.value.lockupPeriod * 24 * 60 * 60 * 1000
-            : undefined,
         })
       }
 
-      // 移除所有锁仓的质押记录
-      userStakes.value = userStakes.value.filter(
-        (stake) => !(stake.tokenId === selectedTokenId.value && stake.isLocked),
-      )
-
       // 添加交易记录
       walletStore.addTransaction({
-        type: 'unstake',
-        amount: tokenStakedAmount.value.toString(),
+        type: 'withdraw',
+        amount: withdrawAmount.value.toString(),
         token: selectedToken.value.symbol,
         status: 'completed',
         transactionHash: receipt?.hash,
